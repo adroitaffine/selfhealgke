@@ -1,0 +1,77 @@
+# Sentinel Policy: Enforce Private GKE Clusters
+# This policy ensures all GKE clusters are configured as private clusters
+
+import "tfplan/v2" as tfplan
+
+# Find all GKE clusters in the plan
+gke_clusters = filter tfplan.resource_changes as _, rc {
+    rc.type is "google_container_cluster" and
+    rc.mode is "managed" and
+    (rc.change.actions contains "create" or rc.change.actions contains "update")
+}
+
+# Rule: All GKE clusters must have private cluster configuration enabled
+private_cluster_enforced = rule {
+    all gke_clusters as _, cluster {
+        cluster.change.after.private_cluster_config[0].enable_private_nodes is true and
+        cluster.change.after.private_cluster_config[0].enable_private_endpoint is false and
+        cluster.change.after.private_cluster_config[0].master_ipv4_cidr_block is not null
+    }
+}
+
+# Rule: All GKE clusters must have authorized networks configured
+authorized_networks_configured = rule {
+    all gke_clusters as _, cluster {
+        cluster.change.after.master_authorized_networks_config is not null and
+        length(cluster.change.after.master_authorized_networks_config[0].cidr_blocks else []) > 0
+    }
+}
+
+# Rule: All GKE clusters must have network policy enabled
+network_policy_enabled = rule {
+    all gke_clusters as _, cluster {
+        cluster.change.after.network_policy[0].enabled is true
+    }
+}
+
+# Rule: All GKE clusters must have shielded nodes enabled
+shielded_nodes_enabled = rule {
+    all gke_clusters as _, cluster {
+        cluster.change.after.enable_shielded_nodes is true
+    }
+}
+
+# Rule: All GKE clusters must have workload identity enabled
+workload_identity_enabled = rule {
+    all gke_clusters as _, cluster {
+        cluster.change.after.workload_identity_config is not null and
+        cluster.change.after.workload_identity_config[0].workload_pool is not null
+    }
+}
+
+# Main rule combining all security requirements
+main = rule {
+    private_cluster_enforced and
+    authorized_networks_configured and
+    network_policy_enabled and
+    shielded_nodes_enabled and
+    workload_identity_enabled
+}
+
+# Print violations for debugging
+print("Evaluating", length(gke_clusters), "GKE clusters for private cluster compliance")
+
+for gke_clusters as address, cluster {
+    if cluster.change.after.private_cluster_config[0].enable_private_nodes is not true {
+        print("VIOLATION:", address, "does not have private nodes enabled")
+    }
+    if cluster.change.after.private_cluster_config[0].enable_private_endpoint is not false {
+        print("VIOLATION:", address, "has private endpoint enabled (should be false for external access)")
+    }
+    if cluster.change.after.network_policy[0].enabled is not true {
+        print("VIOLATION:", address, "does not have network policy enabled")
+    }
+    if cluster.change.after.enable_shielded_nodes is not true {
+        print("VIOLATION:", address, "does not have shielded nodes enabled")
+    }
+}

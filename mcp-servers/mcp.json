@@ -1,0 +1,68 @@
+{
+  "mcpServers": {
+    "gemini-cloud-assist": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "https://github.com/GoogleCloudPlatform/gemini-cloud-assist-mcp"
+      ],
+      "env": {
+        "PATH": "/Users/abhitalluri/.nvm/versions/node/v22.14.0/bin:/Users/abhitalluri/google-cloud-sdk/bin:/usr/local/bin:/usr/bin:/bin",
+        "GCP_PROJECT_ID": "cogent-spirit-469200-q3",
+        "FASTMCP_LOG_LEVEL": "INFO"
+      },
+      "timeout": 600000,
+      "disabled": false,
+      "autoApprove": []
+    },
+    "gke-mcp": {
+      "command": "gke-mcp",
+      "args": [],
+      "env": {
+        "PATH": "/Users/abhitalluri/.nvm/versions/node/v22.14.0/bin:/Users/abhitalluri/google-cloud-sdk/bin:/usr/local/bin:/usr/bin:/bin",
+        "GCP_PROJECT_ID": "cogent-spirit-469200-q3",
+        "FASTMCP_LOG_LEVEL": "INFO"
+      },
+      "disabled": false,
+      "autoApprove": []
+    },
+    "playwright-mcp": {
+      "command": "npx",
+      "args": [
+        "@playwright/mcp@latest"
+      ],
+      "env": {
+        "PATH": "/Users/abhitalluri/.nvm/versions/node/v22.14.0/bin:/Users/abhitalluri/google-cloud-sdk/bin:/usr/local/bin:/usr/bin:/bin",
+        "PLAYWRIGHT_CONFIG": "./playwright-tests/playwright.config.ts"
+      },
+      "disabled": false,
+      "autoApprove": []
+    },
+    "kubernetes": {
+      "command": "npx",
+      "args": [
+        "mcp-server-kubernetes"
+      ],
+      "env": {
+        "PATH": "/Users/abhitalluri/.nvm/versions/node/v22.14.0/bin:/Users/abhitalluri/google-cloud-sdk/bin:/usr/local/bin:/usr/bin:/bin",
+        "KUBECONFIG": "/Users/abhitalluri/.kube/config",
+        "GCP_PROJECT_ID": "cogent-spirit-469200-q3"
+      },
+      "disabled": false,
+      "autoApprove": []
+    },
+    "gcp-observability": {
+      "command": "python3",
+      "args": [
+        "/Users/abhitalluri/selfhealgke/mcp-servers/gcp_observability_server.py"
+      ],
+      "env": {
+        "GCP_PROJECT_ID": "cogent-spirit-469200-q3",
+        "FASTMCP_LOG_LEVEL": "INFO",
+        "PYTHONPATH": "/Users/abhitalluri/selfhealgke/mcp-servers"
+      },
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}

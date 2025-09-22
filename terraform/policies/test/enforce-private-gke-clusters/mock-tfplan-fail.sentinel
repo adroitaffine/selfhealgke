@@ -1,0 +1,24 @@
+resource_changes = {
+  "google_container_cluster.auto_heal_cluster": {
+    "address": "google_container_cluster.auto_heal_cluster",
+    "mode": "managed",
+    "type": "google_container_cluster",
+    "change": {
+      "actions": ["create"],
+      "after": {
+        "name": "test-cluster",
+        "private_cluster_config": [{
+          "enable_private_nodes": false,
+          "enable_private_endpoint": true,
+          "master_ipv4_cidr_block": null,
+        }],
+        "master_authorized_networks_config": null,
+        "network_policy": [{
+          "enabled": false,
+        }],
+        "enable_shielded_nodes": false,
+        "workload_identity_config": null,
+      },
+    },
+  },
+}

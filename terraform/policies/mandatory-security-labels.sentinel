@@ -1,0 +1,174 @@
+# Sentinel Policy: Mandatory Security Labels and Configurations
+# This policy enforces mandatory security labels and configurations
+
+import "tfplan/v2" as tfplan
+
+# Required labels for all resources
+required_labels = [
+    "environment",
+    "managed-by",
+    "purpose",
+]
+
+# Security-sensitive labels
+security_labels = [
+    "security-zone",
+    "data-classification",
+    "compliance-scope",
+]
+
+# Find all GKE clusters
+gke_clusters = filter tfplan.resource_changes as _, rc {
+    rc.type is "google_container_cluster" and
+    rc.mode is "managed" and
+    (rc.change.actions contains "create" or rc.change.actions contains "update")
+}
+
+# Find all GKE node pools
+node_pools = filter tfplan.resource_changes as _, rc {
+    rc.type is "google_container_node_pool" and
+    rc.mode is "managed" and
+    (rc.change.actions contains "create" or rc.change.actions contains "update")
+}
+
+# Find all service accounts
+service_accounts = filter tfplan.resource_changes as _, rc {
+    rc.type is "google_service_account" and
+    rc.mode is "managed" and
+    (rc.change.actions contains "create" or rc.change.actions contains "update")
+}
+
+# Find all compute networks
+networks = filter tfplan.resource_changes as _, rc {
+    rc.type is "google_compute_network" and
+    rc.mode is "managed" and
+    (rc.change.actions contains "create" or rc.change.actions contains "update")
+}
+
+# Helper function to check if required labels are present
+has_required_labels = func(labels) {
+    if labels is null {
+        return false
+    }
+    
+    for required_labels as label {
+        if label not in keys(labels) {
+            return false
+        }
+    }
+    return true
+}
+
+# Rule: All GKE clusters must have required labels
+cluster_labels_present = rule {
+    all gke_clusters as _, cluster {
+        has_required_labels(cluster.change.after.resource_labels)
+    }
+}
+
+# Rule: All node pools must have required labels
+node_pool_labels_present = rule {
+    all node_pools as _, pool {
+        has_required_labels(pool.change.after.node_config[0].labels)
+    }
+}
+
+# Rule: All GKE clusters must have logging and monitoring enabled
+logging_monitoring_enabled = rule {
+    all gke_clusters as _, cluster {
+        cluster.change.after.logging_service is "logging.googleapis.com/kubernetes" and
+        cluster.change.after.monitoring_service is "monitoring.googleapis.com/kubernetes"
+    }
+}
+
+# Rule: All node pools must have shielded instance configuration
+shielded_instances_configured = rule {
+    all node_pools as _, pool {
+        pool.change.after.node_config[0].shielded_instance_config is not null and
+        pool.change.after.node_config[0].shielded_instance_config[0].enable_secure_boot is true and
+        pool.change.after.node_config[0].shielded_instance_config[0].enable_integrity_monitoring is true
+    }
+}
+
+# Rule: All service accounts must have descriptive display names
+service_account_names = rule {
+    all service_accounts as _, sa {
+        sa.change.after.display_name is not null and
+        sa.change.after.display_name is not "" and
+        sa.change.after.description is not null and
+        sa.change.after.description is not ""
+    }
+}
+
+# Rule: All networks must have descriptive names and descriptions
+network_descriptions = rule {
+    all networks as _, network {
+        network.change.after.description is not null and
+        network.change.after.description is not ""
+    }
+}
+
+# Rule: Environment label must have valid values
+valid_environment_values = rule {
+    all gke_clusters as _, cluster {
+        cluster.change.after.resource_labels.environment in ["development", "staging", "production", "test"]
+    } and
+    all node_pools as _, pool {
+        pool.change.after.node_config[0].labels.environment in ["development", "staging", "production", "test"]
+    }
+}
+
+# Rule: managed-by label must indicate terraform
+managed_by_terraform = rule {
+    all gke_clusters as _, cluster {
+        cluster.change.after.resource_labels["managed-by"] is "terraform"
+    } and
+    all node_pools as _, pool {
+        pool.change.after.node_config[0].labels["managed-by"] is "terraform"
+    }
+}
+
+# Main rule combining all security label requirements
+main = rule {
+    cluster_labels_present and
+    node_pool_labels_present and
+    logging_monitoring_enabled and
+    shielded_instances_configured and
+    service_account_names and
+    network_descriptions and
+    valid_environment_values and
+    managed_by_terraform
+}
+
+# Print violations for debugging
+print("Evaluating security labels and configurations")
+
+for gke_clusters as address, cluster {
+    labels = cluster.change.after.resource_labels else {}
+    print("Cluster", address, "labels:", labels)
+    
+    for required_labels as label {
+        if label not in keys(labels) {
+            print("VIOLATION:", address, "missing required label:", label)
+        }
+    }
+    
+    if labels.environment not in ["development", "staging", "production", "test"] {
+        print("VIOLATION:", address, "invalid environment value:", labels.environment)
+    }
+    
+    if labels["managed-by"] is not "terraform" {
+        print("VIOLATION:", address, "managed-by label must be 'terraform'")
+    }
+}
+
+for node_pools as address, pool {
+    labels = pool.change.after.node_config[0].labels else {}
+    print("Node pool", address, "labels:", labels)
+    
+    for required_labels as label {
+        if label not in keys(labels) {
+            print("VIOLATION:", address, "missing required label:", label)
+        }
+    }
+}

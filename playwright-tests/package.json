@@ -1,0 +1,48 @@
+{
+  "name": "gke-auto-heal-playwright-tests",
+  "version": "1.0.0",
+  "description": "Synthetic monitoring tests for Online Boutique with Auto-Heal Agent integration",
+  "main": "index.js",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:debug": "playwright test --debug",
+    "test:ui": "playwright test --ui",
+    "test:report": "playwright show-report",
+    "test:online-boutique": "playwright test --config=configs/online-boutique.config.ts",
+    "test:online-boutique:headed": "playwright test --config=configs/online-boutique.config.ts --headed",
+    "test:online-boutique:debug": "playwright test --config=configs/online-boutique.config.ts --debug",
+    "test:critical-path": "playwright test --config=configs/online-boutique.config.ts --project=critical-path-chrome",
+    "test:mobile": "playwright test --config=configs/online-boutique.config.ts --project=mobile-simulation",
+    "test:compatibility": "playwright test --config=configs/online-boutique.config.ts --project=firefox-compatibility",
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "install:browsers": "playwright install",
+    "install:deps": "playwright install-deps"
+  },
+  "keywords": [
+    "playwright",
+    "synthetic-monitoring",
+    "gke",
+    "auto-heal",
+    "online-boutique"
+  ],
+  "author": "GKE Auto-Heal Team",
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "@playwright/test": "^1.40.0",
+    "@types/node": "^20.9.0",
+    "typescript": "^5.2.0"
+  },
+  "dependencies": {
+    "@opentelemetry/api": "^1.7.0",
+    "@opentelemetry/context-async-hooks": "^1.17.0",
+    "@opentelemetry/instrumentation": "^0.45.0",
+    "axios": "^1.6.0",
+    "crypto": "^1.0.1",
+    "uuid": "^9.0.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

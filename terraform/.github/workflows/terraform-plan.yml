@@ -1,0 +1,144 @@
+# GitHub Actions workflow for Terraform plan
+name: Terraform Plan
+
+on:
+  pull_request:
+    branches: [main]
+    paths: ['terraform/**']
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to plan'
+        required: true
+        default: 'development'
+        type: choice
+        options:
+          - development
+          - staging
+          - production
+
+env:
+  TF_VERSION: '1.5.0'
+  SENTINEL_VERSION: '0.24.1'
+
+jobs:
+  terraform-plan:
+    name: Terraform Plan
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        environment: [development, staging, production]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: ${{ env.TF_VERSION }}
+
+    - name: Setup Sentinel
+      run: |
+        wget https://releases.hashicorp.com/sentinel/${{ env.SENTINEL_VERSION }}/sentinel_${{ env.SENTINEL_VERSION }}_linux_amd64.zip
+        unzip sentinel_${{ env.SENTINEL_VERSION }}_linux_amd64.zip
+        sudo mv sentinel /usr/local/bin/
+        sentinel version
+
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v2
+      with:
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+    - name: Setup Google Cloud SDK
+      uses: google-github-actions/setup-gcloud@v2
+
+    - name: Terraform Init
+      working-directory: terraform
+      run: |
+        terraform init \
+          -backend-config="bucket=${{ secrets.TF_STATE_BUCKET }}" \
+          -backend-config="prefix=terraform/state/${{ matrix.environment }}"
+
+    - name: Terraform Workspace
+      working-directory: terraform
+      run: |
+        terraform workspace select ${{ matrix.environment }} || terraform workspace new ${{ matrix.environment }}
+
+    - name: Terraform Validate
+      working-directory: terraform
+      run: terraform validate
+
+    - name: Terraform Format Check
+      working-directory: terraform
+      run: terraform fmt -check -recursive
+
+    - name: Terraform Plan
+      working-directory: terraform
+      run: |
+        terraform plan \
+          -var-file="environments/${{ matrix.environment }}/terraform.tfvars" \
+          -var="project_id=${{ secrets.GCP_PROJECT_ID }}" \
+          -var="terraform_state_bucket=${{ secrets.TF_STATE_BUCKET }}" \
+          -out=tfplan-${{ matrix.environment }} \
+          -detailed-exitcode
+      continue-on-error: true
+      id: plan
+
+    - name: Export Terraform Plan
+      working-directory: terraform
+      run: |
+        terraform show -json tfplan-${{ matrix.environment }} > tfplan-${{ matrix.environment }}.json
+
+    - name: Run Sentinel Policies
+      working-directory: terraform/policies
+      run: |
+        sentinel test
+        sentinel apply -policy-set=all-policies ../tfplan-${{ matrix.environment }}.json
+      continue-on-error: true
+      id: sentinel
+
+    - name: Comment PR
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const environment = '${{ matrix.environment }}';
+          const planExitCode = '${{ steps.plan.outcome }}';
+          const sentinelExitCode = '${{ steps.sentinel.outcome }}';
+          
+          let comment = `## Terraform Plan Results - ${environment}\n\n`;
+          
+          if (planExitCode === 'success') {
+            comment += '✅ **Terraform Plan**: Success\n';
+          } else {
+            comment += '❌ **Terraform Plan**: Failed\n';
+          }
+          
+          if (sentinelExitCode === 'success') {
+            comment += '✅ **Sentinel Policies**: Passed\n';
+          } else {
+            comment += '❌ **Sentinel Policies**: Failed\n';
+          }
+          
+          comment += '\n<details><summary>Show Plan Details</summary>\n\n';
+          comment += '```\n';
+          comment += 'Plan completed for environment: ' + environment;
+          comment += '\n```\n\n</details>';
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: comment
+          });
+
+    - name: Upload Plan Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: terraform-plan-${{ matrix.environment }}
+        path: |
+          terraform/tfplan-${{ matrix.environment }}
+          terraform/tfplan-${{ matrix.environment }}.json
+        retention-days: 30

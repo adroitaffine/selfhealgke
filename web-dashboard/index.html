@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GKE Auto-Heal Agent - Incident Dashboard</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Header -->
+        <header class="dashboard-header">
+            <div class="header-content">
+                <div class="logo-section">
+                    <i class="fas fa-shield-alt"></i>
+                    <h1>GKE Auto-Heal Agent</h1>
+                </div>
+                <div class="user-section">
+                    <span class="user-name" id="userName">Loading...</span>
+                    <button class="logout-btn" id="logoutBtn">
+                        <i class="fas fa-sign-out-alt"></i>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="dashboard-main">
+            <!-- Status Overview -->
+            <section class="status-overview">
+                <div class="status-card">
+                    <div class="status-icon active">
+                        <i class="fas fa-heartbeat"></i>
+                    </div>
+                    <div class="status-info">
+                        <h3>System Status</h3>
+                        <p id="systemStatus">Active</p>
+                    </div>
+                </div>
+                <div class="status-card">
+                    <div class="status-icon">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </div>
+                    <div class="status-info">
+                        <h3>Pending Approvals</h3>
+                        <p id="pendingCount">0</p>
+                    </div>
+                </div>
+                <div class="status-card">
+                    <div class="status-icon">
+                        <i class="fas fa-check-circle"></i>
+                    </div>
+                    <div class="status-info">
+                        <h3>Resolved Today</h3>
+                        <p id="resolvedCount">0</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Incident Notifications -->
+            <section class="incident-section">
+                <h2>Incident Notifications</h2>
+                <div class="incident-list" id="incidentList">
+                    <!-- Incidents will be dynamically loaded here -->
+                </div>
+            </section>
+
+            <!-- Authentication Modal -->
+            <div class="modal" id="authModal">
+                <div class="modal-content">
+                    <div class="auth-form">
+                        <h2>Authentication Required</h2>
+                        <p>Please authenticate to access the incident dashboard</p>
+                        <form id="authForm">
+                            <div class="form-group">
+                                <label for="username">Username</label>
+                                <input type="text" id="username" name="username" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="password">Password</label>
+                                <input type="password" id="password" name="password" required>
+                            </div>
+                            <button type="submit" class="auth-btn">
+                                <i class="fas fa-lock"></i>
+                                Authenticate
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Approval Modal -->
+            <div class="modal" id="approvalModal">
+                <div class="modal-content approval-modal">
+                    <div class="modal-header">
+                        <h2>Incident Approval Required</h2>
+                        <button class="close-btn" id="closeApprovalModal">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="modal-body" id="approvalModalBody">
+                        <!-- Approval content will be dynamically loaded -->
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- WebSocket Connection Status -->
+    <div class="connection-status" id="connectionStatus">
+        <i class="fas fa-wifi"></i>
+        <span>Connected</span>
+    </div>
+
+    <script src="/static/dashboard.js"></script>
+</body>
+</html>

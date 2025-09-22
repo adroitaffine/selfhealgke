@@ -1,0 +1,133 @@
+# GitHub Actions workflow for Terraform apply
+name: Terraform Apply
+
+on:
+  push:
+    branches: [main]
+    paths: ['terraform/**']
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to apply'
+        required: true
+        default: 'development'
+        type: choice
+        options:
+          - development
+          - staging
+          - production
+      auto_approve:
+        description: 'Auto approve apply'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  TF_VERSION: '1.5.0'
+  SENTINEL_VERSION: '0.24.1'
+
+jobs:
+  terraform-apply:
+    name: Terraform Apply
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'development' }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: ${{ env.TF_VERSION }}
+
+    - name: Setup Sentinel
+      run: |
+        wget https://releases.hashicorp.com/sentinel/${{ env.SENTINEL_VERSION }}/sentinel_${{ env.SENTINEL_VERSION }}_linux_amd64.zip
+        unzip sentinel_${{ env.SENTINEL_VERSION }}_linux_amd64.zip
+        sudo mv sentinel /usr/local/bin/
+        sentinel version
+
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v2
+      with:
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+    - name: Setup Google Cloud SDK
+      uses: google-github-actions/setup-gcloud@v2
+
+    - name: Determine Environment
+      id: env
+      run: |
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          echo "environment=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
+        else
+          echo "environment=development" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Terraform Init
+      working-directory: terraform
+      run: |
+        terraform init \
+          -backend-config="bucket=${{ secrets.TF_STATE_BUCKET }}" \
+          -backend-config="prefix=terraform/state/${{ steps.env.outputs.environment }}"
+
+    - name: Terraform Workspace
+      working-directory: terraform
+      run: |
+        terraform workspace select ${{ steps.env.outputs.environment }} || terraform workspace new ${{ steps.env.outputs.environment }}
+
+    - name: Terraform Plan
+      working-directory: terraform
+      run: |
+        terraform plan \
+          -var-file="environments/${{ steps.env.outputs.environment }}/terraform.tfvars" \
+          -var="project_id=${{ secrets.GCP_PROJECT_ID }}" \
+          -var="terraform_state_bucket=${{ secrets.TF_STATE_BUCKET }}" \
+          -out=tfplan-${{ steps.env.outputs.environment }}
+
+    - name: Export Terraform Plan
+      working-directory: terraform
+      run: |
+        terraform show -json tfplan-${{ steps.env.outputs.environment }} > tfplan-${{ steps.env.outputs.environment }}.json
+
+    - name: Run Sentinel Policies
+      working-directory: terraform/policies
+      run: |
+        sentinel apply -policy-set=all-policies ../tfplan-${{ steps.env.outputs.environment }}.json
+
+    - name: Terraform Apply
+      working-directory: terraform
+      run: |
+        if [ "${{ github.event.inputs.auto_approve }}" = "true" ]; then
+          terraform apply -auto-approve tfplan-${{ steps.env.outputs.environment }}
+        else
+          terraform apply tfplan-${{ steps.env.outputs.environment }}
+        fi
+
+    - name: Output Cluster Info
+      working-directory: terraform
+      run: |
+        echo "## Terraform Apply Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Environment**: ${{ steps.env.outputs.environment }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Cluster Name**: $(terraform output -raw cluster_name)" >> $GITHUB_STEP_SUMMARY
+        echo "**Cluster Location**: $(terraform output -raw cluster_location)" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### kubectl Configuration" >> $GITHUB_STEP_SUMMARY
+        echo '```bash' >> $GITHUB_STEP_SUMMARY
+        echo "$(terraform output -raw kubectl_config_command)" >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
+
+    - name: Notify Slack
+      if: always()
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        channel: '#infrastructure'
+        text: |
+          Terraform Apply ${{ job.status }} for environment: ${{ steps.env.outputs.environment }}
+          Repository: ${{ github.repository }}
+          Commit: ${{ github.sha }}
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

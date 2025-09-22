@@ -1,0 +1,145 @@
+# Sentinel Policy: Restrict Machine Types and Cost Controls
+# This policy enforces machine type restrictions and cost controls
+
+import "tfplan/v2" as tfplan
+import "strings"
+
+# Allowed machine types for different environments
+allowed_machine_types = {
+    "development": [
+        "e2-micro",
+        "e2-small",
+        "e2-medium",
+        "e2-standard-2",
+        "n1-standard-1",
+        "n1-standard-2",
+    ],
+    "staging": [
+        "e2-standard-2",
+        "e2-standard-4",
+        "n1-standard-2",
+        "n1-standard-4",
+        "n2-standard-2",
+        "n2-standard-4",
+    ],
+    "production": [
+        "e2-standard-2",
+        "e2-standard-4",
+        "e2-standard-8",
+        "n1-standard-2",
+        "n1-standard-4",
+        "n1-standard-8",
+        "n2-standard-2",
+        "n2-standard-4",
+        "n2-standard-8",
+    ],
+}
+
+# Maximum node counts by environment
+max_node_counts = {
+    "development": 3,
+    "staging": 10,
+    "production": 50,
+}
+
+# Find all GKE node pools
+node_pools = filter tfplan.resource_changes as _, rc {
+    rc.type is "google_container_node_pool" and
+    rc.mode is "managed" and
+    (rc.change.actions contains "create" or rc.change.actions contains "update")
+}
+
+# Helper function to determine environment from labels or name
+determine_environment = func(resource) {
+    # Check labels first
+    if resource.change.after.node_config[0].labels.environment is not null {
+        return resource.change.after.node_config[0].labels.environment
+    }
+    
+    # Check resource name for environment indicators
+    name = resource.change.after.name
+    if strings.contains(name, "dev") or strings.contains(name, "development") {
+        return "development"
+    } else if strings.contains(name, "staging") or strings.contains(name, "stage") {
+        return "staging"
+    } else if strings.contains(name, "prod") or strings.contains(name, "production") {
+        return "production"
+    }
+    
+    # Default to production for stricter controls
+    return "production"
+}
+
+# Rule: Machine types must be from allowed list
+machine_type_allowed = rule {
+    all node_pools as _, pool {
+        pool.change.after.node_config[0].machine_type in allowed_machine_types[determine_environment(pool)]
+    }
+}
+
+# Rule: Node count must not exceed maximum for environment
+node_count_within_limits = rule {
+    all node_pools as _, pool {
+        pool.change.after.autoscaling[0].max_node_count <= max_node_counts[determine_environment(pool)]
+    }
+}
+
+# Rule: Development environments must use preemptible nodes
+dev_uses_preemptible = rule {
+    all node_pools as _, pool {
+        determine_environment(pool) is not "development" or pool.change.after.node_config[0].preemptible is true
+    }
+}
+
+# Rule: Disk size must be reasonable (not exceeding 200GB for cost control)
+disk_size_reasonable = rule {
+    all node_pools as _, pool {
+        pool.change.after.node_config[0].disk_size_gb <= 200
+    }
+}
+
+# Rule: Must have cost-center or billing labels
+cost_labels_present = rule {
+    all node_pools as _, pool {
+        pool.change.after.node_config[0].labels.cost_center is not null or
+        pool.change.after.node_config[0].labels.billing_code is not null or
+        pool.change.after.node_config[0].labels.project is not null
+    }
+}
+
+# Main rule combining all cost control requirements
+main = rule {
+    machine_type_allowed and
+    node_count_within_limits and
+    dev_uses_preemptible and
+    disk_size_reasonable and
+    cost_labels_present
+}
+
+# Print violations for debugging
+print("Evaluating", length(node_pools), "node pools for machine type and cost compliance")
+
+for node_pools as address, pool {
+    env = determine_environment(pool)
+    machine_type = pool.change.after.node_config[0].machine_type
+    max_nodes = pool.change.after.autoscaling[0].max_node_count
+    disk_size = pool.change.after.node_config[0].disk_size_gb
+    
+    print("Node pool", address, "environment:", env, "machine_type:", machine_type, "max_nodes:", max_nodes)
+    
+    if machine_type not in allowed_machine_types[env] {
+        print("VIOLATION:", address, "uses disallowed machine type", machine_type, "for environment", env)
+    }
+    
+    if max_nodes > max_node_counts[env] {
+        print("VIOLATION:", address, "exceeds maximum node count", max_nodes, "for environment", env)
+    }
+    
+    if env is "development" and pool.change.after.node_config[0].preemptible is not true {
+        print("VIOLATION:", address, "development environment must use preemptible nodes")
+    }
+    
+    if disk_size > 200 {
+        print("VIOLATION:", address, "disk size", disk_size, "GB exceeds 200GB limit")
+    }
+}

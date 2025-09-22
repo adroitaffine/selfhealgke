@@ -1,0 +1,52 @@
+# Core ADK and A2A dependencies
+# Using official packages
+google-adk>=1.14.0
+a2a-sdk>=0.3.6
+
+# MCP Integration
+mcp>=1.0.0
+
+# Google Cloud Services
+google-cloud-logging>=3.8.0
+google-cloud-trace>=1.13.0
+google-cloud-aiplatform>=1.38.0
+google-cloud-container>=2.32.0
+google-auth>=2.23.0
+
+# Kubernetes Integration  
+kubernetes>=28.1.0
+kubectl-ai>=0.1.0
+
+# Vertex AI Gemini
+google-generativeai>=0.3.0
+vertexai>=1.38.0
+
+# Web Framework and HTTP
+fastapi>=0.104.0
+uvicorn>=0.24.0
+httpx>=0.25.0
+websockets>=12.0
+aiohttp>=3.9.0
+aiohttp-cors>=0.7.0
+
+# Data Processing and Validation
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+structlog>=23.2.0
+
+# Async and Concurrency
+asyncio-mqtt>=0.16.0
+aiofiles>=23.2.1
+
+# Utilities
+python-dotenv>=1.0.0
+click>=8.1.0
+rich>=13.7.0
+tenacity>=8.2.0
+
+# Testing Dependencies
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-mock>=3.11.0
+pytest-cov>=4.1.0
+coverage>=7.3.0
