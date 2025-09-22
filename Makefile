@@ -132,3 +132,13 @@ version:
 	@echo "==================="
 	@find agents/ -name "*.py" -not -path "agents/tests/*" | wc -l | xargs echo "Production Python files:"
 	@find agents/tests/ -name "*.py" | wc -l | xargs echo "Test files:"
+
+# Run all agents and web dashboard
+run-agents:
+	@echo "🚀 Starting all agents and web dashboard..."
+	python -m agents.rca_a2a_service &
+	python -m agents.remediation_a2a_service &
+	python -m agents.audit_a2a_service &
+	python -m agents.approval_a2a_service &
+	python -m agents.orchestrator_a2a_service &
+	python ./web-dashboard/server.py

@@ -98,6 +98,45 @@ flowchart TD
     end
 ```
 
+## Development Setup
+
+### 1. Python Virtual Environment & Package Installation
+
+```bash
+# Create and activate a virtual environment (recommended)
+python3 -m venv venv
+source venv/bin/activate
+
+# Install core dependencies
+pip install -r requirements.txt
+
+# For development (linting, tests, etc.)
+pip install -r requirements-dev.txt
+```
+
+### 2. Node.js & Playwright Tests
+
+```bash
+# Install Node.js (recommended: use nvm)
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
+nvm install 22
+nvm use 22
+
+# Install Playwright test dependencies
+cd playwright-tests
+npm install
+```
+
+### 3. Running All Agents & Dashboard
+
+To start all agent services and the web dashboard, run:
+
+```bash
+make run-agents
+```
+
+This will launch all A2A agent services in the background and the dashboard in the foreground.
+
 ## Quick Start
 
 ### Prerequisites
