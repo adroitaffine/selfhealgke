@@ -19,6 +19,85 @@ This project follows a **Google Cloud First** architecture, leveraging official 
 - **Agents**: Root Cause Analysis, Remediation, and Approval agents
 - **Playwright Tests**: Synthetic monitoring for Online Boutique user journeys
 
+## High-Level Architecture Overview
+
+This section describes the overall architecture of the GKE Auto-Heal Agent system, including its main components and data flow.
+
+### Core Components
+- **Agents** (Python, in `agents/`):
+  - **Orchestrator Agent**: Coordinates health monitoring, receives Playwright failure notifications, manages incident response, and orchestrates RCA (Root Cause Analysis) and Remediation agents via A2A (Agent-to-Agent) communication.
+  - **RCA Agent**: Discovers microservice topology from distributed traces/logs, analyzes failures, identifies critical paths and bottlenecks.
+  - **Remediation Agent**: Executes automated remediation actions.
+  - **Approval Agent**: Handles approval workflows for remediation.
+  - **Audit Agent**: Tracks compliance, logs events, and provides audit trails.
+
+- **A2A Services**: Each agent exposes a FastAPI-based REST service for inter-agent communication and external integration.
+
+- **MCP Servers** (`mcp-servers/`):
+  - **Official MCPs**: Integrate with Google Cloud and Microsoft servers for GCP operations, Kubernetes, and browser automation.
+  - **Custom MCPs**: Specialized for observability and Online Boutique patterns.
+
+- **Synthetic Monitoring** (`playwright-tests/`):
+  - **Playwright Tests**: Simulate user journeys for Online Boutique, trigger incident workflows on failures.
+  - **Custom Reporter**: Sends test results to the orchestrator via webhook.
+
+- **Infrastructure** (`terraform/`):
+  - **Terraform Modules**: Networking, GKE cluster, IAM, monitoring, security policies.
+  - **Sentinel Policies**: Enforce compliance and security.
+
+- **Observability Stack**:
+  - **OpenTelemetry, Jaeger, Google Cloud Trace**: Distributed tracing.
+  - **Fluent Bit, Cloud Logging**: Log aggregation.
+  - **Prometheus**: Metrics collection.
+
+- **Web Dashboard** (`web-dashboard/`):
+  - Visualizes incidents, agent actions, and system health.
+
+### High-Level Architecture Diagram
+
+```mermaid
+flowchart TD
+    subgraph Online Boutique Microservices
+        A[Frontend (Go)] --> B[Cart (C#)]
+        B --> C[Product Catalog (Go)]
+        C --> D[Checkout (Go)]
+        D --> E[Payment (Node.js)]
+        E --> F[Shipping (Go)]
+        F --> G[Email (Python)]
+        G --> H[Currency (Node.js)]
+        H --> I[Recommendation (Python)]
+        I --> J[Ad Service (Java)]
+        J --> K[Load Generator (Python/Locust)]
+    end
+    Online Boutique Microservices --> ObservabilityStack
+    subgraph ObservabilityStack [Observability Stack]
+        OT[OpenTelemetry, Jaeger, Cloud Trace]
+        FL[Fluent Bit, Cloud Logging]
+        PM[Prometheus]
+    end
+    ObservabilityStack --> AutoHealSystem
+    subgraph AutoHealSystem [GKE Auto-Heal Agent System]
+        PT[Playwright Tests] --> OA[Orchestrator Agent]
+        OA --> RCA[RCA Agent]
+        RCA --> RA[Remediation Agent]
+        RA --> AA[Approval Agent]
+        OA --> AA
+        OA --> AU[Audit Agent]
+    end
+    AutoHealSystem --> MCPServers
+    subgraph MCPServers [MCP Servers]
+        GCP[Google Cloud MCP]
+        K8S[Kubernetes MCP]
+        PW[Playwright MCP]
+        CustomMCP[Custom Observability MCP]
+    end
+    MCPServers --> DashboardInfra
+    subgraph DashboardInfra [Web Dashboard / Terraform Infra]
+        WD[Web Dashboard]
+        TF[Terraform Infrastructure]
+    end
+```
+
 ## Quick Start
 
 ### Prerequisites
